@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>咩 咩 Ｍagic - Firebase 強化版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1.2.7/build/d3.layout.cloud.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #d5f2e8; }
+        .hidden { display: none !important; }
+        /* 增加開關樣式 */
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #ef4444; }
+        input:checked + .slider:before { transform: translateX(26px); }
+    </style>
+</head>
+<body>
+
+    <div id="firebase-settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full">
+            <h2 class="text-2xl font-bold mb-4">系統進階設定</h2>
+            
+            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-lg mb-6 border border-slate-200">
+                <div>
+                    <p class="font-bold text-slate-700">自動清空歷史紀錄</p>
+                    <p class="text-xs text-slate-500">當「下課」時自動刪除資料庫中的所有作答紀錄</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="auto-delete-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <button id="firebase-settings-modal-close-btn" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition">完成設定</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, collection, addDoc, getDocs, deleteDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // 任務2：更新 Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyB6D9vh6J2mdnjz2VXEVe99oi7oLF-irFo",
+            authDomain: "crm-ts-1225-001.firebaseapp.com",
+            projectId: "crm-ts-1225-001",
+            storageBucket: "crm-ts-1225-001.firebasestorage.app",
+            messagingSenderId: "925760221722",
+            appId: "1:925760221722:web:1aeda0b82f1f16b8dcd7a3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let classroomCode = "DEMO123"; // 預設值
+        let studentName = "";
+
+        // 設定自動刪除狀態 (存於 localStorage)
+        const autoDeleteToggle = document.getElementById('auto-delete-toggle');
+        autoDeleteToggle.checked = localStorage.getItem('autoDeleteHistory') === 'true';
+        autoDeleteToggle.addEventListener('change', (e) => {
+            localStorage.setItem('autoDeleteHistory', e.target.checked);
+        });
+
+        /**
+         * 寫入 Firebase 歷史紀錄
+         * 除了原本的即時互動路徑，額外寫入一個 history 集合
+         */
+        async function saveToHistory(type, answer) {
+            if (!studentName) return;
+            
+            try {
+                const historyRef = collection(db, 'artifacts', 'magic-app', 'classrooms', classroomCode, 'history_records');
+                await addDoc(historyRef, {
+                    name: studentName,
+                    type: type,
+                    answer: answer,
+                    time: serverTimestamp()
+                });
+                console.log("資料已成功寫入永久紀錄區");
+            } catch (e) {
+                console.error("寫入歷史紀錄失敗", e);
+            }
+        }
+
+        /**
+         * 任務1：自動刪除寫入資料的功能
+         * 在下課或重置時呼叫
+         */
+        async function clearFirebaseHistory() {
+            if (!autoDeleteToggle.checked) {
+                console.log("自動刪除已關閉，保留資料。");
+                return;
+            }
+
+            const historyRef = collection(db, 'artifacts', 'magic-app', 'classrooms', classroomCode, 'history_records');
+            const snapshot = await getDocs(historyRef);
+            const batch = writeBatch(db);
+            
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            console.log("資料庫歷史紀錄已清空");
+        }
+
+        // 
+
+        // 綁定原本程式碼中的送出按鈕 (示範文字題)
+        document.getElementById('submit-text-btn')?.addEventListener('click', async () => {
+            const text = document.getElementById('text-input-area').value;
+            // 這裡呼叫原本的 submitAnswer(...) 
+            // 同時執行 saveToHistory
+            await saveToHistory('text_input', text);
+        });
+
+        // 綁定下課按鈕
+        document.getElementById('end-class-session-menu-btn')?.addEventListener('click', async () => {
+            if (confirm("確定要下課嗎？")) {
+                await clearFirebaseHistory();
+                // 執行原本的下課邏輯...
+            }
+        });
+
+        // 初始化匿名登入
+        signInAnonymously(auth).catch(err => console.error("登入失敗", err));
+
+    </script>
+</body>
+</html>
