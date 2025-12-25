@@ -3,137 +3,400 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>咩 咩 Ｍagic - Firebase 強化版</title>
+    <title>咩 咩 Magic - 精簡版</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1.2.7/build/d3.layout.cloud.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #d5f2e8; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #d5f2e8; overscroll-behavior-y: none; }
         .hidden { display: none !important; }
-        /* 增加開關樣式 */
-        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #ef4444; }
-        input:checked + .slider:before { transform: translateX(26px); }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }
+        .landing-card { background-color: white; padding: 2rem; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: all 0.3s ease; cursor: pointer; border: 1px solid #f1f5f9; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .landing-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .btn { display: inline-block; width: 100%; padding: 1rem 1.5rem; font-size: 1.25rem; font-weight: 700; color: white; border-radius: 0.5rem; transition: transform 0.2s; text-align: center; }
+        .btn:active { transform: scale(0.95); }
+        .btn-primary { background-color: #2563eb; }
+        .btn-orange { background-color: #ea580c; }
+        .btn-gray { background-color: #9ca3af; cursor: not-allowed; }
+        .student-response-item { background: white; border-radius: 0.75rem; padding: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); position: relative; }
+        .name-box { background: #d1e7dd; color: #0f5132; padding: 0.25rem 0.75rem; border-radius: 0.5rem; font-weight: bold; margin-bottom: 0.5rem; width: 100%; text-align: center; }
+        #drawing-canvas { border: 2px solid #cbd5e1; border-radius: 0.5rem; background-color: white; width: 100%; cursor: crosshair; touch-action: none; }
+        .focus-game-cell { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; }
+        .matching-item { padding: 1rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; cursor: pointer; background: white; margin-bottom: 0.5rem; text-align: center; }
+        .matching-item.selected { border-color: #3b82f6; background: #eff6ff; }
+        .matching-item.matched { background: #f1f5f9; color: #94a3b8; cursor: default; }
+        .sequencing-item { padding: 0.75rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; margin-bottom: 0.5rem; cursor: grab; display: flex; align-items: center; gap: 0.75rem; }
     </style>
 </head>
-<body>
+<body class="bg-indigo-50 text-slate-800">
 
-    <div id="firebase-settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[110] flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full">
-            <h2 class="text-2xl font-bold mb-4">系統進階設定</h2>
-            
-            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-lg mb-6 border border-slate-200">
-                <div>
-                    <p class="font-bold text-slate-700">自動清空歷史紀錄</p>
-                    <p class="text-xs text-slate-500">當「下課」時自動刪除資料庫中的所有作答紀錄</p>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="auto-delete-toggle">
-                    <span class="slider"></span>
-                </label>
+    <div id="app-container" class="relative min-h-screen flex flex-col">
+
+        <div id="entry-view" class="relative w-full h-screen flex flex-col items-center justify-center p-4">
+            <div class="absolute top-4 right-4 z-10 flex gap-2">
+                <button id="firebase-settings-btn" class="px-4 py-2 bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-slate-200 text-sm font-medium">
+                    <i class="fas fa-cog mr-2"></i>Firebase 設定
+                </button>
             </div>
 
-            <button id="firebase-settings-modal-close-btn" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition">完成設定</button>
+            <div class="w-full max-w-4xl mx-auto p-4 flex flex-col items-center animate-fade-in-up">
+                <div class="text-center mb-12">
+                    <h1 class="text-5xl font-bold text-slate-800 mb-2">咩 咩 Magic</h1>
+                    <p class="text-slate-500">互動學習與專注力訓練系統</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+                    <div class="landing-card" id="teacher-entry-trigger">
+                        <div class="w-20 h-20 bg-pink-100 text-pink-600 rounded-2xl flex items-center justify-center text-4xl mb-6">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold mb-2">我是教師</h2>
+                        <p class="text-slate-500 mb-6">建立教室，發起互動與遊戲</p>
+                        <button id="teacher-entry-btn" class="w-full py-3 bg-pink-500 text-white rounded-xl font-bold">進入教室</button>
+                    </div>
+
+                    <div class="landing-card" id="student-entry-trigger">
+                        <div class="w-20 h-20 bg-sky-100 text-sky-600 rounded-2xl flex items-center justify-center text-4xl mb-6">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold mb-2">我是學生</h2>
+                        <p class="text-slate-500 mb-6">輸入代碼，參與課堂挑戰</p>
+                        <button id="student-entry-btn" class="w-full py-3 bg-sky-500 text-white rounded-xl font-bold">加入課堂</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="teacher-menu-view" class="hidden max-w-6xl mx-auto w-full p-6">
+            <div class="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm">
+                <h2 class="text-2xl font-bold">教師面板 <span id="display-classroom-code" class="text-blue-600"></span></h2>
+                <div class="flex gap-4">
+                    <span class="px-4 py-2 bg-slate-100 rounded-lg">在線: <span id="active-student-count" class="font-bold">0</span></span>
+                    <button id="end-class-session-menu-btn" class="px-4 py-2 bg-red-500 text-white rounded-lg font-bold">結束課程</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <button id="btn-mode-choice" class="landing-card !p-6">
+                    <i class="fas fa-list-ol text-3xl text-green-500 mb-3"></i>
+                    <span class="font-bold">選擇/排序/配對</span>
+                </button>
+                <button data-mode="sticky_note" class="landing-card !p-6 mode-btn">
+                    <i class="fas fa-note-sticky text-3xl text-amber-500 mb-3"></i>
+                    <span class="font-bold">便利貼牆</span>
+                </button>
+                <button id="btn-mode-focus" class="landing-card !p-6">
+                    <i class="fas fa-brain text-3xl text-cyan-500 mb-3"></i>
+                    <span class="font-bold">專注力遊戲</span>
+                </button>
+                <button data-mode="drawing" class="landing-card !p-6 mode-btn">
+                    <i class="fas fa-palette text-3xl text-purple-500 mb-3"></i>
+                    <span class="font-bold">繪圖題</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="student-name-view" class="hidden max-w-md mx-auto w-full mt-20 p-6">
+            <div class="bg-white p-8 rounded-3xl shadow-xl">
+                <h2 class="text-2xl font-bold mb-6 text-center">加入教室</h2>
+                <input type="text" id="student-classroom-code-input" placeholder="教室代碼" class="w-full p-4 border rounded-xl mb-4 text-center text-2xl font-bold uppercase">
+                <input type="text" id="student-name-input" placeholder="您的姓名" class="w-full p-4 border rounded-xl mb-6 text-center text-xl">
+                <button id="submit-name-btn" class="w-full py-4 bg-green-500 text-white rounded-xl font-bold text-xl">進入教室</button>
+            </div>
+        </div>
+
+        <div id="student-interaction-view" class="hidden p-4">
+            <div id="interaction-drawing" class="hidden max-w-4xl mx-auto">
+                <div class="bg-white p-4 rounded-xl shadow-lg mb-4 flex justify-between items-center">
+                    <div class="flex gap-2">
+                        <input type="color" id="color-select" class="w-10 h-10">
+                        <select id="size-select" class="border rounded px-2">
+                            <option value="2">細</option>
+                            <option value="5" selected>中</option>
+                            <option value="10">粗</option>
+                        </select>
+                        <button id="clear-canvas-btn" class="px-4 py-2 bg-slate-200 rounded">清除</button>
+                    </div>
+                    <button id="submit-drawing-btn" class="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold">送出繪圖</button>
+                </div>
+                <canvas id="drawing-canvas"></canvas>
+            </div>
+
+            <div id="interaction-sticky-note" class="hidden max-w-xl mx-auto">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h3 class="text-xl font-bold mb-4 text-amber-600">撰寫便利貼</h3>
+                    <textarea id="sticky-note-text" class="w-full p-4 border rounded-xl h-40 mb-4" placeholder="輸入你想說的話..."></textarea>
+                    <button id="submit-sticky-note-btn" class="w-full py-4 bg-amber-500 text-white rounded-xl font-bold">貼到牆上</button>
+                </div>
+            </div>
+
+            <div id="interaction-focus-game" class="hidden max-w-2xl mx-auto text-center">
+                <div id="focus-game-info" class="mb-6">
+                    <div class="text-4xl font-bold text-cyan-600 mb-2">計時：<span id="focus-timer-display">0.00</span>s</div>
+                    <div class="text-xl">下一個數字：<span id="focus-next-number" class="font-bold text-red-500">1</span></div>
+                </div>
+                <div id="focus-game-grid" class="grid grid-cols-6 gap-2"></div>
+            </div>
+        </div>
+
+        <div id="teacher-monitor-view" class="hidden p-6">
+            <div class="flex justify-between items-center mb-6">
+                <button id="end-interaction-btn" class="px-6 py-2 bg-slate-600 text-white rounded-lg">結束互動</button>
+                <div id="monitor-title" class="text-2xl font-bold"></div>
+            </div>
+            <div id="student-responses-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                </div>
         </div>
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, collection, addDoc, getDocs, deleteDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc, getDocs, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-        // 任務2：更新 Firebase 設定
+        // 任務 1：更新 Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyB6D9vh6J2mdnjz2VXEVe99oi7oLF-irFo",
             authDomain: "crm-ts-1225-001.firebaseapp.com",
+            databaseURL: "https://crm-ts-1225-001-default-rtdb.firebaseio.com",
             projectId: "crm-ts-1225-001",
             storageBucket: "crm-ts-1225-001.firebasestorage.app",
             messagingSenderId: "925760221722",
-            appId: "1:925760221722:web:1aeda0b82f1f16b8dcd7a3"
+            appId: "1:925760221722:web:aac47eb5a7cba165dcd7a3"
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const auth = getAuth(app);
+        const db = getFirestore(app);
 
-        let classroomCode = "DEMO123"; // 預設值
-        let studentName = "";
+        // 全域狀態
+        let classroomCode = '';
+        let studentName = '';
+        let currentUserId = '';
+        let isTeacher = false;
+        let activeInteractionMode = 'waiting';
 
-        // 設定自動刪除狀態 (存於 localStorage)
-        const autoDeleteToggle = document.getElementById('auto-delete-toggle');
-        autoDeleteToggle.checked = localStorage.getItem('autoDeleteHistory') === 'true';
-        autoDeleteToggle.addEventListener('change', (e) => {
-            localStorage.setItem('autoDeleteHistory', e.target.checked);
+        // --- 初始化 ---
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                currentUserId = user.uid;
+                console.log("Logged in as:", currentUserId);
+            } else {
+                signInAnonymously(auth);
+            }
         });
 
-        /**
-         * 寫入 Firebase 歷史紀錄
-         * 除了原本的即時互動路徑，額外寫入一個 history 集合
-         */
-        async function saveToHistory(type, answer) {
-            if (!studentName) return;
-            
-            try {
-                const historyRef = collection(db, 'artifacts', 'magic-app', 'classrooms', classroomCode, 'history_records');
-                await addDoc(historyRef, {
-                    name: studentName,
-                    type: type,
-                    answer: answer,
-                    time: serverTimestamp()
-                });
-                console.log("資料已成功寫入永久紀錄區");
-            } catch (e) {
-                console.error("寫入歷史紀錄失敗", e);
+        // --- 教師端邏輯 ---
+        document.getElementById('teacher-entry-btn').addEventListener('click', () => {
+            const code = prompt("請設定教室代碼 (例如: MATH101):");
+            if (code) {
+                classroomCode = code.toUpperCase();
+                isTeacher = true;
+                initClassroom();
             }
-        }
+        });
 
-        /**
-         * 任務1：自動刪除寫入資料的功能
-         * 在下課或重置時呼叫
-         */
-        async function clearFirebaseHistory() {
-            if (!autoDeleteToggle.checked) {
-                console.log("自動刪除已關閉，保留資料。");
-                return;
-            }
-
-            const historyRef = collection(db, 'artifacts', 'magic-app', 'classrooms', classroomCode, 'history_records');
-            const snapshot = await getDocs(historyRef);
-            const batch = writeBatch(db);
+        async function initClassroom() {
+            document.getElementById('display-classroom-code').textContent = `[ ${classroomCode} ]`;
+            document.getElementById('entry-view').classList.add('hidden');
+            document.getElementById('teacher-menu-view').classList.remove('hidden');
             
-            snapshot.forEach((doc) => {
-                batch.delete(doc.ref);
+            // 監聽在線人數
+            onSnapshot(collection(db, `classrooms/${classroomCode}/presence`), snap => {
+                document.getElementById('active-student-count').textContent = snap.size;
             });
-
-            await batch.commit();
-            console.log("資料庫歷史紀錄已清空");
         }
 
-        // 
-
-        // 綁定原本程式碼中的送出按鈕 (示範文字題)
-        document.getElementById('submit-text-btn')?.addEventListener('click', async () => {
-            const text = document.getElementById('text-input-area').value;
-            // 這裡呼叫原本的 submitAnswer(...) 
-            // 同時執行 saveToHistory
-            await saveToHistory('text_input', text);
+        // 切換模式
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const mode = btn.dataset.mode;
+                startInteraction(mode);
+            });
         });
 
-        // 綁定下課按鈕
-        document.getElementById('end-class-session-menu-btn')?.addEventListener('click', async () => {
-            if (confirm("確定要下課嗎？")) {
-                await clearFirebaseHistory();
-                // 執行原本的下課邏輯...
+        async function startInteraction(mode) {
+            activeInteractionMode = mode;
+            await setDoc(doc(db, `classrooms/${classroomCode}/settings/control`), {
+                mode: mode,
+                active: true,
+                timestamp: serverTimestamp()
+            });
+            
+            // 清除之前的回應
+            const responsesRef = collection(db, `classrooms/${classroomCode}/responses`);
+            const snapshot = await getDocs(responsesRef);
+            snapshot.forEach(async (d) => await deleteDoc(d.ref));
+
+            document.getElementById('teacher-menu-view').classList.add('hidden');
+            document.getElementById('teacher-monitor-view').classList.remove('hidden');
+            document.getElementById('monitor-title').textContent = mode === 'drawing' ? '繪圖題監控' : '便利貼牆監控';
+            
+            listenToResponses(mode);
+        }
+
+        function listenToResponses(mode) {
+            const container = document.getElementById('student-responses-container');
+            onSnapshot(collection(db, `classrooms/${classroomCode}/responses`), snap => {
+                container.innerHTML = '';
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const item = document.createElement('div');
+                    item.className = 'student-response-item';
+                    item.innerHTML = `<div class="name-box">${data.name}</div>`;
+                    
+                    if (mode === 'drawing') {
+                        item.innerHTML += `<img src="${data.answer}" class="w-full rounded">`;
+                    } else {
+                        item.innerHTML += `<div class="p-2 text-sm">${data.answer}</div>`;
+                    }
+                    container.appendChild(item);
+                });
+            });
+        }
+
+        // --- 學生端邏輯 ---
+        document.getElementById('submit-name-btn').addEventListener('click', async () => {
+            classroomCode = document.getElementById('student-classroom-code-input').value.toUpperCase();
+            studentName = document.getElementById('student-name-input').value;
+            
+            if (classroomCode && studentName) {
+                // 檢查教室是否存在
+                const ctrl = await getDocs(query(collection(db, `classrooms/${classroomCode}/settings`)));
+                if (ctrl.empty) {
+                    alert("教室代碼不存在！");
+                    return;
+                }
+                
+                // 設定在線狀態
+                await setDoc(doc(db, `classrooms/${classroomCode}/presence/${currentUserId}`), { name: studentName });
+                
+                document.getElementById('student-name-view').classList.add('hidden');
+                document.getElementById('entry-view').classList.add('hidden');
+                
+                // 監聽模式切換
+                onSnapshot(doc(db, `classrooms/${classroomCode}/settings/control`), snap => {
+                    if (snap.exists()) {
+                        const mode = snap.data().mode;
+                        switchToMode(mode);
+                    }
+                });
             }
         });
 
-        // 初始化匿名登入
-        signInAnonymously(auth).catch(err => console.error("登入失敗", err));
+        function switchToMode(mode) {
+            document.getElementById('student-interaction-view').classList.remove('hidden');
+            document.querySelectorAll('#student-interaction-view > div').forEach(div => div.classList.add('hidden'));
+            const targetUI = document.getElementById(`interaction-${mode.replace('_','-')}`);
+            if (targetUI) targetUI.classList.remove('hidden');
+            
+            if (mode === 'drawing') initStudentCanvas();
+            if (mode === 'focus_game') initFocusGame();
+        }
+
+        // --- 繪圖功能 ---
+        let canvas, ctx, isDrawing = false;
+        function initStudentCanvas() {
+            canvas = document.getElementById('drawing-canvas');
+            ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth * 0.9;
+            canvas.height = 400;
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('touchstart', startDraw);
+            canvas.addEventListener('touchmove', draw);
+            canvas.addEventListener('touchend', endDraw);
+        }
+
+        function startDraw(e) { isDrawing = true; draw(e); }
+        function endDraw() { isDrawing = false; ctx.beginPath(); }
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        document.getElementById('submit-drawing-btn').addEventListener('click', async () => {
+            const dataUrl = canvas.toDataURL();
+            await setDoc(doc(db, `classrooms/${classroomCode}/responses/${currentUserId}`), {
+                name: studentName,
+                answer: dataUrl,
+                type: 'drawing'
+            });
+            alert("已送出！");
+        });
+
+        // --- 便利貼功能 ---
+        document.getElementById('submit-sticky-note-btn').addEventListener('click', async () => {
+            const text = document.getElementById('sticky-note-text').value;
+            await setDoc(doc(db, `classrooms/${classroomCode}/responses/${currentUserId}`), {
+                name: studentName,
+                answer: text,
+                type: 'sticky'
+            });
+            alert("已送出！");
+        });
+
+        // --- 專注力遊戲 ---
+        let nextNum = 1;
+        let startTime;
+        function initFocusGame() {
+            nextNum = 1;
+            document.getElementById('focus-next-number').textContent = nextNum;
+            const grid = document.getElementById('focus-game-grid');
+            grid.innerHTML = '';
+            const nums = Array.from({length: 36}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+            nums.forEach(n => {
+                const cell = document.createElement('button');
+                cell.className = 'focus-game-cell bg-white shadow border-2 border-slate-200 hover:bg-cyan-50';
+                cell.textContent = n;
+                cell.onclick = () => {
+                    if (n === nextNum) {
+                        if (n === 1) startTime = Date.now();
+                        cell.style.visibility = 'hidden';
+                        nextNum++;
+                        document.getElementById('focus-next-number').textContent = nextNum;
+                        if (nextNum > 36) {
+                            const time = ((Date.now() - startTime) / 1000).toFixed(2);
+                            alert(`完成！時間：${time}秒`);
+                            submitFocusResult(time);
+                        }
+                    }
+                };
+                grid.appendChild(cell);
+            });
+        }
+
+        async function submitFocusResult(time) {
+            await setDoc(doc(db, `classrooms/${classroomCode}/responses/${currentUserId}`), {
+                name: studentName,
+                answer: `完成時間: ${time}s`,
+                type: 'focus'
+            });
+        }
+
+        // 其他功能切換按鈕綁定 (教師選單)
+        document.getElementById('btn-mode-choice').addEventListener('click', () => alert("選擇/排序/配對 功能模組加載中..."));
+        document.getElementById('btn-mode-focus').addEventListener('click', () => startInteraction('focus_game'));
+        document.getElementById('end-interaction-btn').addEventListener('click', () => {
+            document.getElementById('teacher-monitor-view').classList.add('hidden');
+            document.getElementById('teacher-menu-view').classList.remove('hidden');
+        });
 
     </script>
 </body>
